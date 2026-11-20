@@ -1,0 +1,6 @@
+@StaffDbDebug_HostAddress = http://localhost:5098
+
+GET {{StaffDbDebug_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
