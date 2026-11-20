@@ -1,9 +1,9 @@
 
-using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
 using StaffDb.DTOs;
+using StaffDb.Filters;
 using StaffDb.Models;
 
 namespace StaffDb.Controllers;
@@ -11,8 +11,7 @@ namespace StaffDb.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 public class EmployeesController(
-    AppDbContext context,
-    IValidator<EmployeeRequest> validator) : ControllerBase
+    AppDbContext context) : ControllerBase
 {
     // GET: api/employees
     [HttpGet]
@@ -67,32 +66,11 @@ public class EmployeesController(
 
     // POST: api/employees
     [HttpPost]
+    [ServiceFilter(typeof(ValidationFilter))]
     public async Task<ActionResult<EmployeeResponse>> CreateEmployee(
         EmployeeRequest request,
         CancellationToken cancellationToken)
     {
-        // Validate employee request.
-        var validationResult = await validator.ValidateAsync(
-            request,
-            cancellationToken);
-
-        if (!validationResult.IsValid)
-        {
-            var errors = validationResult.Errors
-                .GroupBy(error => error.PropertyName)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .Select(error => error.ErrorMessage)
-                        .ToArray());
-
-            return BadRequest(new
-            {
-                message = "Validation failed.",
-                errors
-            });
-        }
-
         var name = request.Name.Trim();
         var email = request.Email.Trim();
 
@@ -153,33 +131,12 @@ public class EmployeesController(
 
     // PUT: api/employees/5
     [HttpPut("{id:int}")]
+    [ServiceFilter(typeof(ValidationFilter))]
     public async Task<IActionResult> UpdateEmployee(
         int id,
         EmployeeRequest request,
         CancellationToken cancellationToken)
     {
-        // Validate employee request.
-        var validationResult = await validator.ValidateAsync(
-            request,
-            cancellationToken);
-
-        if (!validationResult.IsValid)
-        {
-            var errors = validationResult.Errors
-                .GroupBy(error => error.PropertyName)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .Select(error => error.ErrorMessage)
-                        .ToArray());
-
-            return BadRequest(new
-            {
-                message = "Validation failed.",
-                errors
-            });
-        }
-
         // Find the existing employee.
         var employee = await context.Employees
             .FirstOrDefaultAsync(
