@@ -1,4 +1,5 @@
 
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
@@ -9,7 +10,9 @@ namespace StaffDb.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class DepartmentsController(AppDbContext context) : ControllerBase
+public class DepartmentsController(
+    AppDbContext context,
+    IValidator<DepartmentRequest> validator) : ControllerBase
 {
     // GET: api/departments
     [HttpGet]
@@ -59,6 +62,28 @@ public class DepartmentsController(AppDbContext context) : ControllerBase
         DepartmentRequest request,
         CancellationToken cancellationToken)
     {
+        // Validate department request.
+        var validationResult = await validator.ValidateAsync(
+            request,
+            cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(error => error.ErrorMessage)
+                        .ToArray());
+
+            return BadRequest(new
+            {
+                message = "Validation failed.",
+                errors
+            });
+        }
+
         var name = request.Name.Trim();
 
         // Check whether department name already exists.
@@ -100,6 +125,28 @@ public class DepartmentsController(AppDbContext context) : ControllerBase
         DepartmentRequest request,
         CancellationToken cancellationToken)
     {
+        // Validate department request.
+        var validationResult = await validator.ValidateAsync(
+            request,
+            cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(error => error.ErrorMessage)
+                        .ToArray());
+
+            return BadRequest(new
+            {
+                message = "Validation failed.",
+                errors
+            });
+        }
+
         // Find the existing department.
         var department = await context.Departments
             .FirstOrDefaultAsync(

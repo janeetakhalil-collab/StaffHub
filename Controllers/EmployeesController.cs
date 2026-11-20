@@ -1,4 +1,5 @@
 
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
@@ -9,7 +10,9 @@ namespace StaffDb.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class EmployeesController(AppDbContext context) : ControllerBase
+public class EmployeesController(
+    AppDbContext context,
+    IValidator<EmployeeRequest> validator) : ControllerBase
 {
     // GET: api/employees
     [HttpGet]
@@ -68,6 +71,28 @@ public class EmployeesController(AppDbContext context) : ControllerBase
         EmployeeRequest request,
         CancellationToken cancellationToken)
     {
+        // Validate employee request.
+        var validationResult = await validator.ValidateAsync(
+            request,
+            cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(error => error.ErrorMessage)
+                        .ToArray());
+
+            return BadRequest(new
+            {
+                message = "Validation failed.",
+                errors
+            });
+        }
+
         var name = request.Name.Trim();
         var email = request.Email.Trim();
 
@@ -133,6 +158,28 @@ public class EmployeesController(AppDbContext context) : ControllerBase
         EmployeeRequest request,
         CancellationToken cancellationToken)
     {
+        // Validate employee request.
+        var validationResult = await validator.ValidateAsync(
+            request,
+            cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(error => error.ErrorMessage)
+                        .ToArray());
+
+            return BadRequest(new
+            {
+                message = "Validation failed.",
+                errors
+            });
+        }
+
         // Find the existing employee.
         var employee = await context.Employees
             .FirstOrDefaultAsync(
