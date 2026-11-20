@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
+using StaffDb.Filters;
 using StaffDb.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,9 @@ builder.Services.AddControllers();
 // Register FluentValidation validators.
 builder.Services.AddValidatorsFromAssemblyContaining<
     DepartmentRequestValidator>();
+
+// Register validation filter.
+builder.Services.AddScoped<ValidationFilter>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
