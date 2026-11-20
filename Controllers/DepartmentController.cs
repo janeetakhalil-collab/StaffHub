@@ -1,9 +1,9 @@
 
-using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
 using StaffDb.DTOs;
+using StaffDb.Filters;
 using StaffDb.Models;
 
 namespace StaffDb.Controllers;
@@ -11,8 +11,7 @@ namespace StaffDb.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 public class DepartmentsController(
-    AppDbContext context,
-    IValidator<DepartmentRequest> validator) : ControllerBase
+    AppDbContext context) : ControllerBase
 {
     // GET: api/departments
     [HttpGet]
@@ -58,32 +57,11 @@ public class DepartmentsController(
 
     // POST: api/departments
     [HttpPost]
+    [ServiceFilter(typeof(ValidationFilter))]
     public async Task<ActionResult<DepartmentResponse>> CreateDepartment(
         DepartmentRequest request,
         CancellationToken cancellationToken)
     {
-        // Validate department request.
-        var validationResult = await validator.ValidateAsync(
-            request,
-            cancellationToken);
-
-        if (!validationResult.IsValid)
-        {
-            var errors = validationResult.Errors
-                .GroupBy(error => error.PropertyName)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .Select(error => error.ErrorMessage)
-                        .ToArray());
-
-            return BadRequest(new
-            {
-                message = "Validation failed.",
-                errors
-            });
-        }
-
         var name = request.Name.Trim();
 
         // Check whether department name already exists.
@@ -120,33 +98,12 @@ public class DepartmentsController(
 
     // PUT: api/departments/5
     [HttpPut("{id:int}")]
+    [ServiceFilter(typeof(ValidationFilter))]
     public async Task<ActionResult<DepartmentResponse>> UpdateDepartment(
         int id,
         DepartmentRequest request,
         CancellationToken cancellationToken)
     {
-        // Validate department request.
-        var validationResult = await validator.ValidateAsync(
-            request,
-            cancellationToken);
-
-        if (!validationResult.IsValid)
-        {
-            var errors = validationResult.Errors
-                .GroupBy(error => error.PropertyName)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .Select(error => error.ErrorMessage)
-                        .ToArray());
-
-            return BadRequest(new
-            {
-                message = "Validation failed.",
-                errors
-            });
-        }
-
         // Find the existing department.
         var department = await context.Departments
             .FirstOrDefaultAsync(
