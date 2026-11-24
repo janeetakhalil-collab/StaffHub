@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
 using StaffDb.DTOs;
 using StaffDb.Filters;
+using StaffDb.Mappers;
 using StaffDb.Models;
 
 namespace StaffDb.Controllers;
@@ -21,17 +22,16 @@ public class DepartmentsController(
         var departments = await context.Departments
             .AsNoTracking()
             .OrderBy(department => department.Id)
-            .Select(department => new DepartmentResponse
-            {
-                Id = department.Id,
-                Name = department.Name
-            })
             .ToListAsync(cancellationToken);
 
-        return Ok(departments);
+        var response = departments
+            .Select(DepartmentMapper.ToResponse)
+            .ToList();
+
+        return Ok(response);
     }
 
-    // GET: api/departments/5
+    // GET: api/departments/1
     [HttpGet("{id:int}")]
     public async Task<ActionResult<DepartmentResponse>> GetDepartment(
         int id,
@@ -39,20 +39,14 @@ public class DepartmentsController(
     {
         var department = await context.Departments
             .AsNoTracking()
-            .Where(department => department.Id == id)
-            .Select(department => new DepartmentResponse
-            {
-                Id = department.Id,
-                Name = department.Name
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(
+                department => department.Id == id,
+                cancellationToken);
 
         if (department is null)
-        {
             return NotFound("Department not found.");
-        }
 
-        return Ok(department);
+        return Ok(DepartmentMapper.ToResponse(department));
     }
 
     // POST: api/departments
@@ -64,16 +58,14 @@ public class DepartmentsController(
     {
         var name = request.Name.Trim();
 
-        // Check whether department name already exists.
         var departmentExists = await context.Departments
             .AnyAsync(
                 department => department.Name == name,
                 cancellationToken);
 
         if (departmentExists)
-        {
-            return Conflict("A department with this name already exists.");
-        }
+            return Conflict(
+                "A department with this name already exists.");
 
         var department = new Department
         {
@@ -84,11 +76,7 @@ public class DepartmentsController(
 
         await context.SaveChangesAsync(cancellationToken);
 
-        var response = new DepartmentResponse
-        {
-            Id = department.Id,
-            Name = department.Name
-        };
+        var response = DepartmentMapper.ToResponse(department);
 
         return CreatedAtAction(
             nameof(GetDepartment),
@@ -96,7 +84,7 @@ public class DepartmentsController(
             response);
     }
 
-    // PUT: api/departments/5
+    // PUT: api/departments/1
     [HttpPut("{id:int}")]
     [ServiceFilter(typeof(ValidationFilter))]
     public async Task<ActionResult<DepartmentResponse>> UpdateDepartment(
@@ -104,20 +92,16 @@ public class DepartmentsController(
         DepartmentRequest request,
         CancellationToken cancellationToken)
     {
-        // Find the existing department.
         var department = await context.Departments
             .FirstOrDefaultAsync(
                 department => department.Id == id,
                 cancellationToken);
 
         if (department is null)
-        {
             return NotFound("Department not found.");
-        }
 
         var name = request.Name.Trim();
 
-        // Check for duplicate name, excluding the current department.
         var nameExists = await context.Departments
             .AnyAsync(
                 department =>
@@ -126,24 +110,17 @@ public class DepartmentsController(
                 cancellationToken);
 
         if (nameExists)
-        {
-            return Conflict("Another department already uses this name.");
-        }
+            return Conflict(
+                "Another department already uses this name.");
 
         department.Name = name;
 
         await context.SaveChangesAsync(cancellationToken);
 
-        var response = new DepartmentResponse
-        {
-            Id = department.Id,
-            Name = department.Name
-        };
-
-        return Ok(response);
+        return Ok(DepartmentMapper.ToResponse(department));
     }
 
-    // DELETE: api/departments/5
+    // DELETE: api/departments/1
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteDepartment(
         int id,
@@ -155,21 +132,16 @@ public class DepartmentsController(
                 cancellationToken);
 
         if (department is null)
-        {
             return NotFound("Department not found.");
-        }
 
-        // Check whether employees are assigned to this department.
         var hasEmployees = await context.Employees
             .AnyAsync(
                 employee => employee.DepartmentId == id,
                 cancellationToken);
 
         if (hasEmployees)
-        {
             return Conflict(
                 "This department cannot be deleted because employees are assigned to it.");
-        }
 
         context.Departments.Remove(department);
 

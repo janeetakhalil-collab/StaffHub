@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
 using StaffDb.DTOs;
 using StaffDb.Filters;
+using StaffDb.Mappers;
 using StaffDb.Models;
 
 namespace StaffDb.Controllers;
@@ -20,21 +21,18 @@ public class EmployeesController(
     {
         var employees = await context.Employees
             .AsNoTracking()
+            .Include(employee => employee.Department)
             .OrderBy(employee => employee.Id)
-            .Select(employee => new EmployeeResponse
-            {
-                Id = employee.Id,
-                Name = employee.Name,
-                Email = employee.Email,
-                DepartmentId = employee.DepartmentId,
-                DepartmentName = employee.Department.Name
-            })
             .ToListAsync(cancellationToken);
 
-        return Ok(employees);
+        var response = employees
+            .Select(EmployeeMapper.ToResponse)
+            .ToList();
+
+        return Ok(response);
     }
 
-    // GET: api/employees/5
+    // GET: api/employees/1
     [HttpGet("{id:int}")]
     public async Task<ActionResult<EmployeeResponse>> GetEmployee(
         int id,
@@ -42,26 +40,15 @@ public class EmployeesController(
     {
         var employee = await context.Employees
             .AsNoTracking()
-            .Where(employee => employee.Id == id)
-            .Select(employee => new EmployeeResponse
-            {
-                Id = employee.Id,
-                Name = employee.Name,
-                Email = employee.Email,
-                DepartmentId = employee.DepartmentId,
-                DepartmentName = employee.Department.Name
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Include(employee => employee.Department)
+            .FirstOrDefaultAsync(
+                employee => employee.Id == id,
+                cancellationToken);
 
         if (employee is null)
-        {
-            return NotFound(new
-            {
-                message = "Employee not found."
-            });
-        }
+            return NotFound("Employee not found.");
 
-        return Ok(employee);
+        return Ok(EmployeeMapper.ToResponse(employee));
     }
 
     // POST: api/employees
@@ -71,57 +58,38 @@ public class EmployeesController(
         EmployeeRequest request,
         CancellationToken cancellationToken)
     {
-        var name = request.Name.Trim();
-        var email = request.Email.Trim();
-
-        // Check whether the department exists.
         var department = await context.Departments
-            .AsNoTracking()
             .FirstOrDefaultAsync(
                 department => department.Id == request.DepartmentId,
                 cancellationToken);
 
         if (department is null)
-        {
-            return BadRequest(new
-            {
-                message = "The selected department does not exist."
-            });
-        }
+            return BadRequest("Department not found.");
 
-        // Check whether the email already exists.
+        var email = request.Email.Trim();
+
         var emailExists = await context.Employees
             .AnyAsync(
                 employee => employee.Email == email,
                 cancellationToken);
 
         if (emailExists)
-        {
-            return Conflict(new
-            {
-                message = "An employee with this email already exists."
-            });
-        }
+            return Conflict(
+                "An employee with this email already exists.");
 
         var employee = new Employee
         {
-            Name = name,
+            Name = request.Name.Trim(),
             Email = email,
-            DepartmentId = department.Id
+            DepartmentId = department.Id,
+            Department = department
         };
 
         context.Employees.Add(employee);
 
         await context.SaveChangesAsync(cancellationToken);
 
-        var response = new EmployeeResponse
-        {
-            Id = employee.Id,
-            Name = employee.Name,
-            Email = employee.Email,
-            DepartmentId = employee.DepartmentId,
-            DepartmentName = department.Name
-        };
+        var response = EmployeeMapper.ToResponse(employee);
 
         return CreatedAtAction(
             nameof(GetEmployee),
@@ -129,7 +97,7 @@ public class EmployeesController(
             response);
     }
 
-    // PUT: api/employees/5
+    // PUT: api/employees/1
     [HttpPut("{id:int}")]
     [ServiceFilter(typeof(ValidationFilter))]
     public async Task<IActionResult> UpdateEmployee(
@@ -137,63 +105,46 @@ public class EmployeesController(
         EmployeeRequest request,
         CancellationToken cancellationToken)
     {
-        // Find the existing employee.
         var employee = await context.Employees
             .FirstOrDefaultAsync(
                 employee => employee.Id == id,
                 cancellationToken);
 
         if (employee is null)
-        {
-            return NotFound(new
-            {
-                message = "Employee not found."
-            });
-        }
+            return NotFound("Employee not found.");
 
-        // Check whether the selected department exists.
-        var departmentExists = await context.Departments
-            .AnyAsync(
+        var department = await context.Departments
+            .FirstOrDefaultAsync(
                 department => department.Id == request.DepartmentId,
                 cancellationToken);
 
-        if (!departmentExists)
-        {
-            return BadRequest(new
-            {
-                message = "The selected department does not exist."
-            });
-        }
+        if (department is null)
+            return BadRequest("Department not found.");
 
-        var name = request.Name.Trim();
         var email = request.Email.Trim();
 
-        // Check for duplicate email, excluding the current employee.
-        var duplicateEmail = await context.Employees
+        var emailExists = await context.Employees
             .AnyAsync(
-                existing =>
-                    existing.Id != id &&
-                    existing.Email == email,
+                employee =>
+                    employee.Email == email &&
+                    employee.Id != id,
                 cancellationToken);
 
-        if (duplicateEmail)
-        {
-            return Conflict(new
-            {
-                message = "An employee with this email already exists."
-            });
-        }
+        if (emailExists)
+            return Conflict(
+                "Another employee already uses this email.");
 
-        employee.Name = name;
+        employee.Name = request.Name.Trim();
         employee.Email = email;
-        employee.DepartmentId = request.DepartmentId;
+        employee.DepartmentId = department.Id;
+        employee.Department = department;
 
         await context.SaveChangesAsync(cancellationToken);
 
         return NoContent();
     }
 
-    // DELETE: api/employees/5
+    // DELETE: api/employees/1
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteEmployee(
         int id,
@@ -205,12 +156,7 @@ public class EmployeesController(
                 cancellationToken);
 
         if (employee is null)
-        {
-            return NotFound(new
-            {
-                message = "Employee not found."
-            });
-        }
+            return NotFound("Employee not found.");
 
         context.Employees.Remove(employee);
 
