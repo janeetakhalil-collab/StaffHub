@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StaffDb.Data;
 using StaffDb.Filters;
+using StaffDb.Middlewares;
 using StaffDb.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,12 +18,14 @@ builder.Services.AddValidatorsFromAssemblyContaining<
 // Register validation filter.
 builder.Services.AddScoped<ValidationFilter>();
 
+// Register Entity Framework Core with SQL Server.
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 
+// Customize automatic model validation error responses.
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
@@ -47,9 +50,11 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
+// Register Swagger services.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Configure CORS policy.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowLocalhost", policy =>
@@ -63,20 +68,37 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Handle unexpected exceptions across the downstream pipeline.
+app.UseMiddleware<GlobalExceptionMiddleware>();
+
+// Log HTTP requests, response status codes and execution time.
+app.UseMiddleware<RequestLoggingMiddleware>();
+
+// Enable Swagger only in development.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+// Redirect HTTP requests to HTTPS.
+app.UseHttpsRedirection();
+
+// Enable endpoint routing.
+app.UseRouting();
+
+// Apply the configured CORS policy.
 app.UseCors("AllowLocalhost");
 
+// Enable authorization middleware.
 app.UseAuthorization();
 
+// Map controller endpoints.
 app.MapControllers();
 
 app.Run();
 
+// Check whether the request origin is localhost.
 static bool IsLocalhostOrigin(string origin)
 {
     if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
