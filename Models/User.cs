@@ -8,3 +8,10 @@ public class User
 
     public string PasswordHash { get; set; } = string.Empty;
 }
+
+//CREATE TABLE Users
+//(
+    //Id INT IDENTITY(1,1) PRIMARY KEY,
+    //Username NVARCHAR(MAX) NOT NULL,
+   // PasswordHash NVARCHAR(MAX) NOT NULL
+//);
